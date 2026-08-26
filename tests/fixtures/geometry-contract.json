@@ -1,0 +1,18 @@
+{
+  "canvas": {
+    "width": 1600,
+    "height": 900,
+    "ratio": 1.7777777778
+  },
+  "pptx": {
+    "widthIn": 13.333,
+    "heightIn": 7.5,
+    "unitsPerInch": 120
+  },
+  "anchors": [
+    { "canvas": 0, "inches": 0 },
+    { "canvas": 600, "inches": 5 },
+    { "canvas": 1600, "inches": 13.3333 },
+    { "canvas": 900, "inches": 7.5 }
+  ]
+}

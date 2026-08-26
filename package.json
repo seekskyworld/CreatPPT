@@ -1,0 +1,88 @@
+{
+  "name": "@seekskyworld/creatppt",
+  "version": "0.1.2",
+  "description": "Agent-first web presentation workspace with on-demand editable PPTX export.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/seekskyworld/CreatPPT.git"
+  },
+  "homepage": "https://github.com/seekskyworld/CreatPPT",
+  "bugs": {
+    "url": "https://github.com/seekskyworld/CreatPPT/issues"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org",
+    "access": "public"
+  },
+  "keywords": [
+    "presentation",
+    "pptx",
+    "slides",
+    "agent",
+    "web-editor"
+  ],
+  "bin": {
+    "creatppt": "dist/node/cli.js"
+  },
+  "files": [
+    "dist",
+    "starter",
+    "README.md",
+    "README.zh-CN.md",
+    "CONTRIBUTING.md",
+    "CONTRIBUTING.zh-CN.md",
+    "SECURITY.md",
+    "CODE_OF_CONDUCT.md",
+    "SKILL.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "dev": "CREATPPT_PROJECT=examples/demo-deck vite --host 127.0.0.1",
+    "dev:e2e": "tsx scripts/e2e-dev.ts",
+    "dev:e2e:built": "tsx scripts/e2e-built.ts",
+    "demo:reset": "tsx scripts/generate-demo.ts",
+    "assets:compress": "node scripts/compress-starter-assets.mjs",
+    "build": "npm run typecheck && vite build && tsup --config tsup.config.ts",
+    "typecheck": "vue-tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:built": "npm run build && node scripts/run-built-e2e.mjs",
+    "test:serve:built": "node scripts/serve-smoke.mjs",
+    "visual:review": "tsx scripts/capture-review.ts",
+    "check:dependencies": "node scripts/check-release-dependencies.mjs",
+    "audit:release": "npm audit --omit=dev --audit-level=high && npm run check:dependencies",
+    "check": "npm run check:dependencies && npm run typecheck && npm run test && npm run build",
+    "package:smoke": "node scripts/smoke-package.mjs",
+    "prepack": "npm run build"
+  },
+  "dependencies": {
+    "commander": "^14.0.0"
+  },
+  "devDependencies": {
+    "@jsamuel1/pptxgenjs": "5.0.9",
+    "@lucide/vue": "^1.33.0",
+    "@playwright/test": "^1.54.2",
+    "@types/node": "^22.17.1",
+    "@vitejs/plugin-vue": "^6.0.1",
+    "@vue/test-utils": "^2.4.6",
+    "happy-dom": "^20.11.6",
+    "jszip": "^3.10.1",
+    "tsx": "^4.20.3",
+    "tsup": "^8.5.0",
+    "typescript": "^5.8.3",
+    "vite": "^7.1.2",
+    "vitest": "^3.2.4",
+    "vue": "^3.5.18",
+    "vue-tsc": "^3.0.5",
+    "zod": "^3.25.76"
+  },
+  "overrides": {
+    "esbuild": "0.28.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

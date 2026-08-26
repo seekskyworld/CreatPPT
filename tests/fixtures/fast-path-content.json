@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "id": "environment-protection",
+  "title": "环境保护行动方案",
+  "subtitle": "从数据理解问题，从行动改变结果",
+  "audience": "管理层与项目团队",
+  "purpose": "对齐减排优先级和执行路径",
+  "decision": "确认首轮试点范围与负责人",
+  "language": "zh-CN",
+  "tone": "清晰、可信、行动导向",
+  "template": "editorial",
+  "slides": "auto",
+  "sections": [
+    {
+      "id": "why-now",
+      "title": "为什么现在行动",
+      "body": "排放、能源和材料效率正在同时影响成本与长期韧性。"
+    },
+    {
+      "id": "metrics",
+      "intent": "metrics",
+      "title": "先盯住三个结果",
+      "stats": [
+        { "value": "32%", "label": "可识别的减排空间" },
+        { "value": "18", "label": "个月回收周期" },
+        { "value": "4", "label": "优先试点场景" }
+      ]
+    },
+    {
+      "id": "path",
+      "intent": "timeline",
+      "title": "从基线到规模化",
+      "steps": [
+        { "label": "01", "title": "建立基线", "body": "统一能源、材料与运输口径。" },
+        { "label": "02", "title": "验证试点", "body": "在高影响场景中测量结果。" },
+        { "label": "03", "title": "复制扩展", "body": "把有效做法写入运营流程。" }
+      ]
+    }
+  ],
+  "assets": []
+}

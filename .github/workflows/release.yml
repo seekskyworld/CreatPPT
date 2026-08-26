@@ -1,0 +1,141 @@
+name: Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  quality:
+    name: Release quality (${{ matrix.os }}, Node ${{ matrix.node }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+        node:
+          - '20'
+          - '22'
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Run typecheck, tests, and production build
+        run: npm run check
+      - name: Verify managed workspace lifecycle
+        run: npm run test:serve:built
+      - name: Install the packed package and run npx smoke
+        if: matrix.node == '22'
+        run: npm run package:smoke
+
+  browser:
+    name: Release browser quality
+    runs-on: ubuntu-latest
+    needs: quality
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run desktop and mobile browser checks
+        run: npm run test:e2e:built
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs:
+      - quality
+      - browser
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          registry-url: https://registry.npmjs.org
+      - name: Install OIDC-capable npm
+        run: npm install --global npm@11.17.0
+      - name: Verify tag version
+        run: node scripts/check-release-version.mjs "$GITHUB_REF_NAME"
+      - name: Install dependencies and rebuild the exact release artifact
+        run: npm ci && npm run check && npm run package:smoke
+      - name: Audit production dependencies
+        run: npm run audit:release
+      - name: Pack the release tarball
+        shell: bash
+        run: |
+          mkdir -p release-assets
+          npm pack --ignore-scripts --pack-destination release-assets
+          package_archive="$(find release-assets -maxdepth 1 -type f -name '*.tgz' -print -quit)"
+          test -n "$package_archive"
+          echo "CREATPPT_ARCHIVE=$package_archive" >> "$GITHUB_ENV"
+      - name: Publish to npm with Trusted Publisher provenance
+        shell: bash
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          package_name="$(node -p "require('./package.json').name")"
+          if [[ "$(npm view "${package_name}@${version}" version 2>/dev/null || true)" = "$version" ]]; then
+            echo "${package_name}@${version} is already published; skipping"
+          else
+            # npm 11 can treat a bare relative path as a git/package spec; make
+            # the local tarball boundary explicit for the release job.
+            npm publish "./$CREATPPT_ARCHIVE" --provenance --access public
+          fi
+      - name: Verify registry visibility and npx entrypoint
+        shell: bash
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          package_name="$(node -p "require('./package.json').name")"
+          registry="https://registry.npmjs.org"
+          for attempt in $(seq 1 60); do
+            if [[ "$(npm view "${package_name}@${version}" version --registry="$registry" 2>/dev/null || true)" = "$version" ]]; then
+              break
+            fi
+            if [[ "$attempt" = 60 ]]; then
+              echo "${package_name}@${version} did not become visible in the registry" >&2
+              exit 1
+            fi
+            npm cache clean --force >/dev/null 2>&1 || true
+            sleep 5
+          done
+          smoke_dir="$(mktemp -d)"
+          (
+            cd "$smoke_dir"
+            for attempt in $(seq 1 12); do
+              output="$(npm exec --yes --registry="$registry" --package="${package_name}@${version}" -- creatppt --version 2>/dev/null || true)"
+              if [[ "$output" = "$version" ]]; then
+                exit 0
+              fi
+              npm cache clean --force >/dev/null 2>&1 || true
+              sleep 5
+            done
+            echo "npx entrypoint for ${package_name}@${version} was not ready" >&2
+            exit 1
+          )
+      - uses: softprops/action-gh-release@v3
+        with:
+          files: release-assets/*.tgz
+          fail_on_unmatched_files: true
+          generate_release_notes: true

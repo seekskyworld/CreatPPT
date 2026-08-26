@@ -1,0 +1,70 @@
+# Workspace-only collaboration and reference repositories
+.golutra/
+project/
+
+# Generated local demo workspace (recreated by `npm run demo:reset`)
+examples/demo-deck/
+
+# Dependencies
+node_modules/
+.pnpm-store/
+.yarn/
+.pnp.*
+
+# Build output
+/dist/
+/build/
+/out/
+/output/
+/outputs/
+benchmark-results/
+coverage/
+.cache/
+.creatppt/
+.parcel-cache/
+.turbo/
+.next/
+.nuxt/
+.svelte-kit/
+.vite/
+*.tsbuildinfo
+*.tgz
+
+# Test and browser artifacts
+.nyc_output/
+playwright-report/
+test-results/
+blob-report/
+
+# Python artifacts used by optional tooling
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.local
+
+# Logs and temporary files
+*.log
+logs/
+tmp/
+temp/
+.tmp/
+*.swp
+*.swo
+*~
+
+# Editors and operating systems
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
