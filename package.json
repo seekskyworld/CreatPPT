@@ -1,6 +1,6 @@
 {
   "name": "@seekskyworld/creatppt",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Agent-first web presentation workspace with on-demand editable PPTX export.",
   "type": "module",
   "license": "Apache-2.0",

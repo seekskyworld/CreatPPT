@@ -15,7 +15,7 @@ Create a completed presentation workspace as `deck.json` plus local assets. Do n
 - Run published-package smoke commands from the Agent's host project or a clean temporary directory, not from the CreatPPT source checkout; npm 11 can resolve the checkout's own package context instead of injecting the published bin.
 - Keep `project/` and `.golutra/` outside the installed package; the package boundary contains only the runtime bundle, starter assets, docs, and license.
 - The published client is already bundled and the Node CLI embeds its schemas; npm should install only `commander` at runtime. Do not install Vue, the icon library, JSZip, PPTXGenJS, or Zod separately for an npx run.
-- The 18 bundled starter photographs are distributed as compressed JPEGs (transparent starter PNGs are kept as PNG). npm and npx unpack them automatically; Agents must not add a manual unzip step. User-provided PNG/JPEG/WebP files remain unchanged.
+- The 18 bundled starter photographs are distributed as compressed JPEGs (transparent starter PNGs are kept as PNG). npm and npx unpack them automatically; Agents must not add a manual unzip step. They are partitioned into three template-specific six-image pools. Automatic filling consumes only the selected template pool in stable order and never repeats an automatic image within a deck; explicit Agent/user images are preserved as authored. User-provided PNG/JPEG/WebP files remain unchanged.
 
 ## Fast path (default)
 
@@ -36,7 +36,7 @@ The source can be Markdown, HTML, plain text, semantic content JSON, a DeckSpec 
 Useful options:
 
 - `--assets <dir>`: explicit local JPEG, PNG, or WebP assets. If omitted, an adjacent `assets/` directory is used, then the curated starter library is used as a transparent fallback.
-- Generated deliveries include the full compressed starter library so switching Signal, Editorial, or Studio later cannot point at a missing local file; user assets remain reference-driven.
+- Generated deliveries include the full compressed starter library so switching Signal, Editorial, or Studio later cannot point at a missing local file. This does not mean all 18 images are placed in the initial deck: automatic filling uses only the selected template's six-image pool, while user assets remain reference-driven.
 - `--strict`: make quality warnings blocking for automated pipelines.
 - `--explain`: include layout candidates, budgets, and source information in the JSON result.
 - `--port auto|<n>`: select a free local port when serving. `--open` opens the URL after starting it.
@@ -68,6 +68,10 @@ npx @seekskyworld/creatppt@latest create --from ./brief.md --out ./delivery --js
 npx @seekskyworld/creatppt@latest serve ./delivery --background --port auto --json
 npx @seekskyworld/creatppt@latest health ./delivery --json
 ```
+
+Keep the returned workspace URL available for the person to review. Do not run
+`stop` until the browser handoff is complete; `stop` intentionally makes the
+local URL unavailable.
 
 When the user or orchestrator is finished with the local workspace:
 

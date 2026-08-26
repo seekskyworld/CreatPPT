@@ -212,6 +212,8 @@ npx @seekskyworld/creatppt@latest stop ./delivery --json
 
 JSON 结果包含 `projectDir`、`deckPath`、schema 版本、质量摘要、URL、PID，以及固定的 `pptxGenerated: false`。Agent 不应打开空白编辑器让人审批，不应手动解压 starter 素材，也不应在用户要求前导出 PPTX。
 
+每个模板拥有 6 张 starter 图片。自动填充只使用当前模板图片池，按稳定顺序分配，并保证同一 deck 内自动插入的图片不重复。其余 starter 图片被复制到交付目录，只是为了后续切换模板时本地资源仍然可用。Agent 或用户明确指定的图片按原样保留，不参与自动去重。网页审阅完成前请保留返回的 URL；执行 `stop` 后该 URL 会失效。
+
 ### 人与 Agent 的职责
 
 | 人 | Agent |

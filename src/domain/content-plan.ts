@@ -5,6 +5,7 @@ import {
   type ContentPlan,
 } from './pipeline-types'
 import { planDeck } from './planner'
+import { starterImagePool } from './template-assets'
 import type {
   AssetManifestEntry,
   DeckSpec,
@@ -62,14 +63,14 @@ export function deckFromContentPlan(plan: ContentPlan): DeckSpec {
   const english = !/^zh/i.test(plan.designContext.language ?? '')
   const canonicalBySource = new Map(plan.assets.map(asset => [asset.src, asset.id]))
   const fallbackHero = fallbackImage(plan.templateId, true, `${plan.id}-cover-hero`, english)
-  const fallbackSection = fallbackImage(plan.templateId, false, `${plan.id}-section-fallback`, english)
+  const starterPool = starterImagePool(plan.templateId)
+  const usedAutomaticSources = new Set<string>()
   // A role-tagged asset is the most explicit cover choice. For backwards
   // compatibility with the template fallback contract, also inherit metadata
   // when an Agent supplies an asset at the fallback path.
   const heroAsset = findRoleAsset(plan.assets, 'cover') ?? plan.assets.find(asset => asset.src === fallbackHero.src)
-  const sectionAsset = findRoleAsset(plan.assets, 'section') ?? plan.assets.find(asset => asset.src === fallbackSection.src)
   const heroImage = heroAsset ? mergePlanAsset(fallbackHero, heroAsset) : fallbackHero
-  const sectionImage = sectionAsset ? mergePlanAsset(fallbackSection, sectionAsset) : fallbackSection
+  if (!heroAsset) usedAutomaticSources.add(heroImage.src)
   const slides: SlideSpec[] = [{
     id: `${plan.id}-cover`,
     layout: 'cover',
@@ -103,8 +104,10 @@ export function deckFromContentPlan(plan: ContentPlan): DeckSpec {
       images: images?.length ? images : undefined,
       footer: `${String(index + 1).padStart(2, '0')} / ${plan.title}`,
     }
-    if (['cover', 'split', 'gallery'].includes(base.layout) && !base.images?.length) {
-      base.images = [sectionImage]
+    if (['split', 'gallery'].includes(base.layout) && !base.images?.length) {
+      const count = base.layout === 'gallery' ? 3 : 1
+      const automaticImages = takeAutomaticImages(starterPool, usedAutomaticSources, count, `${block.title ?? plan.title} ${english ? 'image' : '配图'}`)
+      if (automaticImages.length) base.images = automaticImages
     }
     slides.push(base)
   })
@@ -141,6 +144,25 @@ export function deckFromContentPlan(plan: ContentPlan): DeckSpec {
     slides: materializedSlides,
     assetManifest: buildAssetManifest(plan.assets, materializedSlides),
   }
+}
+
+function takeAutomaticImages(
+  pool: ImageAsset[],
+  usedSources: Set<string>,
+  count: number,
+  fallbackAlt: string,
+): ImageAsset[] {
+  const selected: ImageAsset[] = []
+  for (const image of pool) {
+    if (selected.length >= count || usedSources.has(image.src)) continue
+    usedSources.add(image.src)
+    selected.push({
+      ...image,
+      alt: image.alt || fallbackAlt,
+      provenance: image.provenance ?? { kind: 'local', source: 'CreatPPT starter asset' },
+    })
+  }
+  return selected
 }
 
 /** Compile the internal plan into the persisted DeckSpec and deterministic candidates. */

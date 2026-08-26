@@ -212,6 +212,14 @@ npx @seekskyworld/creatppt@latest stop ./delivery --json
 
 The JSON result includes `projectDir`, `deckPath`, schema version, quality summary, URL, PID, and the invariant `pptxGenerated: false`. An Agent should not open a blank editor for approval, manually unzip starter assets, or export a PPTX before the user asks for it.
 
+Each template owns six starter images. Automatic filling uses only the selected
+template pool, in stable order, without repeating an automatically inserted
+image in the same deck. The other starter images are copied only so a later
+template switch has local assets available. Images explicitly supplied by an
+Agent or user are preserved as authored and are not de-duplicated. Keep the
+returned URL available until review is complete; `stop` makes that URL
+unavailable.
+
 ### Human vs Agent responsibilities
 
 | Human | Agent |

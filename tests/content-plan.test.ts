@@ -70,6 +70,43 @@ describe('semantic content planning', () => {
     expect(plan.source.kind).toBe('agent')
   })
 
+  it('fills image layouts from the selected template pool without repeating automatic images', () => {
+    const plan = contentPlanFromInput({
+      title: 'Automatic media',
+      template: 'studio',
+      sections: [
+        { title: 'One', intent: 'split', body: 'A' },
+        { title: 'Two', intent: 'split', body: 'B' },
+        { title: 'Three', intent: 'gallery', body: 'C' },
+      ],
+    })
+    const deck = deckFromContentPlan(plan)
+    const automatic = deck.slides.flatMap(slide => slide.images ?? [])
+      .filter(image => image.provenance?.source === 'CreatPPT starter asset')
+      .map(image => image.src)
+
+    expect(automatic).toHaveLength(6)
+    expect(new Set(automatic).size).toBe(6)
+    expect(automatic.every(src => src.includes('studio') || src.includes('team-collaboration'))).toBe(true)
+  })
+
+  it('does not rewrite manually supplied duplicate images', () => {
+    const plan = contentPlanFromInput({
+      title: 'Manual media',
+      template: 'signal',
+      sections: [{
+        title: 'Manual',
+        intent: 'split',
+        images: [
+          { src: 'assets/custom.jpg', alt: 'Custom' },
+          { src: 'assets/custom.jpg', alt: 'Custom again' },
+        ],
+      }],
+    })
+    const deck = deckFromContentPlan(plan)
+    expect(deck.slides[1].images?.map(image => image.src)).toEqual(['assets/custom.jpg', 'assets/custom.jpg'])
+  })
+
   it('derives eight semantic layouts from one annotated brief and preserves candidates', () => {
     const input = contentInputFromBrief(`---\ntemplate: editorial\n---\n# 语义布局验收\n\n## [metrics] 关键结果\n- 32% | 减排空间\n- 18 | 月回收\n\n## [comparison] 两种路径\n- 现状 | 手工整理\n- Fast path | 自动规划\n\n## [chart] 趋势\n- 32 | 2024\n- 45 | 2025\n\n## [timeline] 落地步骤\n- 01 | 建立基线 | 统一口径\n- 02 | 验证试点 | 测量结果\n\n## [gallery] 证据\n![工厂屋顶](assets/one.png)\n![城市能源](assets/two.png)\n\n## [quote] 一句话\n“先测量，再承诺。”\n\n## [agenda] 议程\n- 研究\n- 试点\n- 复制\n\n## [split] 现场\n现场数据说明。\n![现场](assets/three.png)`)
     const plan = contentPlanFromInput(input)

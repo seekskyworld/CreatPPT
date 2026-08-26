@@ -99,6 +99,12 @@ Every asset records an ID, source path, role, alt text, provenance and checksum
 when available. IDs are unique across the deck, which prevents save failures
 when the same visual is used in multiple contexts.
 
+For automatic media filling, each template owns a six-image pool. The allocator
+consumes that pool in a stable order and skips starter images already inserted
+automatically in the current deck. It never mixes template pools or repeats an
+automatic image after the pool is exhausted. Explicit Agent/user images are
+preserved as authored and are not subject to this automatic de-duplication.
+
 ## 5. Quality Gates
 
 `src/domain/pipeline.ts` combines the following checks:
