@@ -1,7 +1,7 @@
 import { createReadStream } from 'node:fs'
 import { createServer, type Server } from 'node:http'
 import { stat } from 'node:fs/promises'
-import { extname, resolve } from 'node:path'
+import { extname, relative, resolve, sep } from 'node:path'
 import { handleProjectRequest } from './handlers'
 
 export interface ServerOptions {
@@ -43,7 +43,9 @@ async function serveClient(urlValue: string, response: import('node:http').Serve
   const requested = pathname === '/' ? 'index.html' : pathname.slice(1)
   const target = resolve(clientDir, requested)
   const root = resolve(clientDir)
-  if (!target.startsWith(`${root}/`) && target !== root) {
+  const relativePath = relative(root, target)
+  const insideRoot = relativePath === '' || (relativePath !== '..' && !relativePath.startsWith(`..${sep}`) && !relativePath.startsWith(sep))
+  if (!insideRoot) {
     response.statusCode = 403
     response.end('Forbidden')
     return
