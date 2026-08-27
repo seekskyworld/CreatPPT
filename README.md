@@ -90,6 +90,22 @@ The first screen is a finished Web workspace, not an empty editor. The Agent pre
 
 The Web editor and PPTX exporter consume the same semantic `DeckSpec`. Clicking **Export PPT** creates native text, images, shapes, lines, and charts; the Agent generation step never claims that a PPTX already exists.
 
+### Multi-format delivery & degrade strategies
+
+CreatPPT supports 4 delivery formats: `web`, `pptx`, `pdf`, and `png`. Every element type defines its full Web capability and explicit PPTX degrade strategy:
+
+| Element Type | Web Capability | PPTX Degrade Strategy | PDF | PNG |
+| --- | --- | --- | --- | --- |
+| `text` | Full Rich Editing & Styling | Native PPTX Text Shape | ✅ | ✅ |
+| `image` | Object Fit & Free Transformations | Native PPTX Picture Part | ✅ | ✅ |
+| `rect` / `ellipse` / `line` / `arrow` | Vector Shapes & Borders | Native PPTX Shape | ✅ | ✅ |
+| `table` | Cell Editing, Formula Calculations & Merging | Native PPTX Table (Evaluated Values) | ✅ | ✅ |
+| `chart` | Interactive Tooltips (Bar/Pie/Line/Scatter/Area) | Native PPTX Chart Object | ✅ | ✅ |
+| `form` | HTML Controls & Data Submission | Static Text Label + `[___]` Placeholder | ✅ | ✅ |
+| `embed` | Sandboxed Iframe & Fallback | Fallback Image / Hyperlink Text | ✅ | ✅ |
+| `animation` | IntersectionObserver + CSS Animations | Injected `<p:timing>` OpenXML Nodes | Static | Static |
+| `action` | Slide Jump & URL Navigation | Native PPTX Shape/Text Hyperlink | ✅ | Static |
+
 ### Built-in internationalization
 
 The editor supports English and Simplified Chinese. On first launch it follows `navigator.languages` / `navigator.language`, then remembers a manual choice in local storage and synchronizes `<html lang>`.

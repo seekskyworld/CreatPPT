@@ -41,3 +41,29 @@ export function inspectPipeline(deck: DeckSpec, options: PipelineQualityOptions 
 export function qualityIssuesForStage(report: QualityReport, stage: PipelineStage): QualityReport['issues'] {
   return report.issues.filter(issue => issue.stage === stage)
 }
+
+/** 动画推断阶段：根据内容密度自动建议逐条出现动画 */
+export function inferAnimations(deck: DeckSpec): DeckSpec {
+  const cloned = structuredClone(deck)
+  cloned.slides.forEach(slide => {
+    const itemCount = Math.max(
+      slide.bullets?.length ?? 0,
+      slide.elements?.length ?? 0,
+      slide.stats?.length ?? 0,
+      slide.columns?.length ?? 0,
+      slide.steps?.length ?? 0,
+    )
+
+    // High density / item count trigger automatic item appearance animations
+    if (itemCount >= 3 && (!slide.animations || slide.animations.length === 0)) {
+      slide.animations = Array.from({ length: itemCount }).map((_, index) => ({
+        id: `anim-${slide.id}-${index + 1}`,
+        trigger: index === 0 ? 'onClick' : 'afterPrevious',
+        effect: 'fade',
+        delay: index * 200,
+        duration: 400,
+      }))
+    }
+  })
+  return cloned
+}

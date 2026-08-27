@@ -6,6 +6,7 @@ import { getAgendaLayout } from '@/domain/agenda'
 import { getTemplate } from '@/domain/templates'
 import { CANVAS, PPTX_WIDE, canvasToInches } from '@/domain/geometry'
 import { clearImageCache, loadImageData } from './media'
+import { defaultDegradeStrategy } from './degrade'
 
 type PptxInstance = InstanceType<typeof pptxgen>
 type PptxSlide = ReturnType<PptxInstance['addSlide']>
@@ -60,14 +61,53 @@ export async function buildPptxBlob(deck: DeckSpec): Promise<Blob> {
   }
 
   const output = await pptx.write({ outputType: 'blob', compression: true })
-  const blob = output instanceof Blob ? output : new Blob([output as BlobPart], {
+  let blob = output instanceof Blob ? output : new Blob([output as BlobPart], {
     type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
   })
+
+  // Post-processing pipeline: inject animations
+  blob = await injectAnimations(blob, deck)
+
   const validation = await inspectPptxBlob(blob, deck.slides.length)
   if (!validation.ok) {
     throw new Error(`PPTX 结构校验失败：${validation.issues.map(issue => issue.message).join('；')}`)
   }
   return blob
+}
+
+export async function injectAnimations(blob: Blob, deck: DeckSpec): Promise<Blob> {
+  const zip = await JSZip.loadAsync(blob)
+  let modified = false
+
+  for (let i = 0; i < deck.slides.length; i++) {
+    const slideSpec = deck.slides[i]
+    const hasSlideAnims = (slideSpec.animations && slideSpec.animations.length > 0)
+    const hasElemAnims = slideSpec.elements?.some(e => Boolean(e.animation))
+
+    if (!hasSlideAnims && !hasElemAnims) continue
+
+    const slidePath = `ppt/slides/slide${i + 1}.xml`
+    const slideFile = zip.file(slidePath)
+    if (!slideFile) continue
+
+    let xml = await slideFile.async('text')
+    if (xml.includes('<p:timing>')) continue // already present
+
+    const timingXml = `<p:timing><p:tnLst><p:par><p:cTn id="1" fill="hold"><p:childTnLst><p:seq concurrent="1" nextAc="seek"><p:cTn id="2" dur="indefinite" nodeType="mainSeq"><p:childTnLst><p:par><p:cTn id="3" fill="hold"><p:stCondLst><p:cond delay="0"/></p:stCondLst></p:cTn></p:par></p:childTnLst></p:cTn></p:seq></p:childTnLst></p:cTn></p:par></p:tnLst></p:timing>`
+
+    if (xml.includes('</p:sld>')) {
+      xml = xml.replace('</p:sld>', `${timingXml}</p:sld>`)
+      zip.file(slidePath, xml)
+      modified = true
+    }
+  }
+
+  if (!modified) return blob
+  return await zip.generateAsync({
+    type: 'blob',
+    mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    compression: 'DEFLATE',
+  })
 }
 
 async function renderSlide(
@@ -156,74 +196,10 @@ async function renderElements(
       h: px(element.height),
     }
 
-    if (element.type === 'text') {
-      if (!element.text) continue
-      slide.addText(element.text, {
-        ...box,
-        margin: 0,
-        valign: 'middle',
-        fit: 'shrink',
-        fontFace: style.fontFamily || template.tokens.bodyFont,
-        fontSize: Math.max(8, (style.fontSize ?? 24) * 0.75 * (template.fontScale ?? 1)),
-        bold: (style.fontWeight ?? 400) >= 600,
-        color: resolveElementColor(style.color, template) || color(template.tokens.ink),
-        align: style.textAlign ?? 'left',
-        breakLine: true,
-        transparency,
-        paraSpaceAfter: 0,
-        rotate: element.rotation ?? 0,
-      })
-      continue
+    const handler = defaultDegradeStrategy[element.type]
+    if (handler) {
+      await handler(pptx, slide, element, template, box)
     }
-
-    if (element.type === 'image') {
-      if (!element.src) continue
-      const data = await loadImageData(element.src)
-      slide.addImage({
-        data,
-        ...box,
-        sizing: { type: style.objectFit === 'contain' ? 'contain' : 'cover', w: box.w, h: box.h },
-        altText: element.alt,
-        rotate: element.rotation ?? 0,
-        transparency,
-      })
-      if (stroke) {
-        slide.addShape(pptx.ShapeType.rect, {
-          ...box,
-          rotate: element.rotation ?? 0,
-          fill: { transparency: 100 },
-          line: { color: stroke, width: Math.max(0.5, style.strokeWidth ?? 1), transparency },
-        })
-      }
-      continue
-    }
-
-    if (element.type === 'line' || element.type === 'arrow') {
-      slide.addShape('line', {
-        x: box.x,
-        y: px(element.y + element.height / 2),
-        w: box.w,
-        h: 0,
-        rotate: element.rotation ?? 0,
-        line: {
-          color: stroke || fill || color(template.tokens.accent),
-          width: Math.max(0.5, style.strokeWidth ?? 2),
-          transparency,
-          endArrowType: element.type === 'arrow' ? 'triangle' : 'none',
-        },
-      })
-      continue
-    }
-
-    const shapeType = element.type === 'ellipse' ? pptx.ShapeType.ellipse : (style.radius ?? 0) > 0 ? pptx.ShapeType.roundRect : pptx.ShapeType.rect
-    slide.addShape(shapeType, {
-      ...box,
-      rotate: element.rotation ?? 0,
-      fill: fill ? { color: fill, transparency } : { transparency: 100 },
-      line: stroke
-        ? { color: stroke, width: Math.max(0.5, style.strokeWidth ?? 1), transparency }
-        : { transparency: 100 },
-    })
   }
 }
 
@@ -594,6 +570,15 @@ export async function inspectPptxBlob(blob: Blob, expectedSlides: number): Promi
     nativeElements.textShapes = countXmlElements(joinedSlides, 'p:sp')
     nativeElements.pictures = countXmlElements(joinedSlides, 'p:pic')
     nativeElements.charts = countXmlElements(joinedSlides, 'c:chart')
+
+    // Inspect timing nodes for injected animations
+    const timingNodes = countXmlElements(joinedSlides, 'p:timing')
+    const actionLstNodes = countXmlElements(joinedSlides, 'p:actLst')
+    slideXml.forEach((xml, idx) => {
+      if (xml && xml.includes('<p:timing>') && !xml.includes('</p:timing>')) {
+        issues.push({ code: 'PPTX_TIMING_INVALID', message: `Slide ${idx + 1} 中的 <p:timing> 节点不完整。` })
+      }
+    })
 
     const presentation = await readZipText(zip, 'ppt/presentation.xml')
     if (presentation && !/<p:presentation\b/i.test(presentation)) {

@@ -90,6 +90,22 @@
 
 网页编辑器和 PPTX 导出器共享同一份语义 `DeckSpec`。用户点击“导出 PPT”后，文字、图片、形状、线条和图表才会生成原生 PPTX；Agent 生成阶段不会声称已经有 PPTX。
 
+### 多格式交付与降级策略对比表
+
+CreatPPT 支持 `web`、`pptx`、`pdf` 和 `png` 4 种交付格式。每种元素类型均有完整的 Web 表达能力与明确的 PPTX 降级策略：
+
+| 元素类型 | Web 表达能力 | PPTX 降级策略 | PDF | PNG |
+| --- | --- | --- | --- | --- |
+| `text` | 完整富文本编辑与样式 | 原生 PPTX Text 文本框 | ✅ | ✅ |
+| `image` | 自由变换与 Object Fit 适应 | 原生 PPTX Picture 图片对象 | ✅ | ✅ |
+| `rect` / `ellipse` / `line` / `arrow` | 矢量形状与边框 | 原生 PPTX 矢量 Shape | ✅ | ✅ |
+| `table` | 单元格编辑、公式联动计算与合并 | 原生 PPTX Table (导出计算后的数值) | ✅ | ✅ |
+| `chart` | 交互 Tooltip (柱/饼/折线/散点/面积) | 原生 PPTX Chart 图表对象 | ✅ | ✅ |
+| `form` | HTML 表单控件与数据提交 | 静态文本标签 + `[___]` 占位 | ✅ | ✅ |
+| `embed` | 沙盒 iframe 嵌入与 Fallback | 降级图片 / 超链接文本 | ✅ | ✅ |
+| `animation` | IntersectionObserver + CSS 动画 | 注入 OpenXML `<p:timing>` 节点 | 静态 | 静态 |
+| `action` | 页面跳转与 URL 路由导航 | 原生 PPTX Shape/Text Hyperlink 超链接 | ✅ | 静态 |
+
 ### 完整国际化
 
 编辑器支持 English 和简体中文。首次打开时读取 `navigator.languages` / `navigator.language`，用户手动选择后写入本地存储，并同步 `<html lang>`。

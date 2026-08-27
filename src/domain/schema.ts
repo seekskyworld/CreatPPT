@@ -57,12 +57,64 @@ const stepSchema = z.object({
   body: z.string().optional(),
 })
 
-const chartSchema = z.object({
+export const chartSchema = z.object({
   unit: z.string().optional(),
   points: z.array(z.object({
     label: z.string().min(1),
     value: z.number().finite(),
-  })).min(2).max(8),
+  })).min(1).max(20),
+  type: z.enum(['bar', 'pie', 'line', 'scatter', 'area']).optional(),
+  chartType: z.enum(['bar', 'pie', 'line', 'scatter', 'area']).optional(),
+})
+
+export const tableMergeCellSchema = z.object({
+  row: z.number().int().min(0),
+  col: z.number().int().min(0),
+  rowspan: z.number().int().min(1).optional(),
+  colspan: z.number().int().min(1).optional(),
+  rowSpan: z.number().int().min(1).optional(),
+  colSpan: z.number().int().min(1).optional(),
+})
+
+export const tableSchema = z.object({
+  headers: z.array(z.string()),
+  rows: z.array(z.array(z.union([z.string(), z.number()]))),
+  formulas: z.record(z.string()).optional(),
+  mergeCells: z.array(tableMergeCellSchema).optional(),
+})
+
+export const formFieldSchema = z.object({
+  id: z.string().optional(),
+  name: z.string().optional(),
+  type: z.string(),
+  label: z.string().min(1),
+  options: z.array(z.string()).optional(),
+  value: z.any().optional(),
+})
+
+export const actionSchema = z.object({
+  type: z.enum(['slideJump', 'url', 'hyperlink']),
+  target: z.union([z.string(), z.number()]),
+})
+
+export const formSchema = z.object({
+  fields: z.array(formFieldSchema),
+  submitAction: z.union([z.string(), actionSchema]).optional(),
+})
+
+export const embedSchema = z.object({
+  url: z.string().min(1),
+  sandbox: z.union([z.string(), z.boolean()]).optional(),
+  fallbackImage: z.string().optional(),
+})
+
+export const animationSchema = z.object({
+  id: z.string().optional(),
+  targetElementId: z.string().optional(),
+  trigger: z.enum(['onClick', 'afterPrevious', 'withPrevious']),
+  effect: z.enum(['appear', 'fade', 'flyIn']),
+  delay: z.number().finite().optional(),
+  duration: z.number().finite().optional(),
 })
 
 const elementStyleSchema = z.object({
@@ -80,7 +132,7 @@ const elementStyleSchema = z.object({
   objectFit: z.enum(['cover', 'contain']).optional(),
 }).partial()
 
-const slideElementSchema = z.object({
+export const slideElementSchema = z.object({
   id: z.string().min(1),
   type: z.enum(SLIDE_ELEMENT_TYPES),
   x: z.number().finite().min(0).max(1600),
@@ -97,7 +149,13 @@ const slideElementSchema = z.object({
   alt: z.string().optional(),
   path: z.string().min(1).optional(),
   style: elementStyleSchema.optional(),
-}).superRefine((element, context) => {
+  table: tableSchema.optional(),
+  chart: chartSchema.optional(),
+  form: formSchema.optional(),
+  embed: embedSchema.optional(),
+  animation: animationSchema.optional(),
+  action: actionSchema.optional(),
+}).passthrough().superRefine((element, context) => {
   if (element.type === 'text' && !element.text) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ['text'], message: 'Text element requires text.' })
   }

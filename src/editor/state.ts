@@ -17,6 +17,7 @@ const loadError = ref('')
 const currentSlideId = ref('')
 const selection = ref<EditorSelection | null>(null)
 const saveState = ref<SaveState>('idle')
+const formData = ref<Record<string, Record<string, any>>>({})
 const presentation = ref(false)
 const mobilePanel = ref<'slides' | 'canvas' | 'inspector'>('canvas')
 const notices = ref<Array<{ id: number; tone: 'success' | 'error' | 'info'; message: string }>>([])
@@ -97,6 +98,15 @@ export function useEditorState() {
       setAtPath(slide, path, value)
       refreshSlideElementBindings(slide, deck.value.templateId)
     })
+  }
+
+  function updateFormData(slideId: string, fieldIdOrData: string | Record<string, any>, value?: any) {
+    if (!formData.value[slideId]) formData.value[slideId] = {}
+    if (typeof fieldIdOrData === 'object') {
+      formData.value[slideId] = { ...formData.value[slideId], ...fieldIdOrData }
+    } else {
+      formData.value[slideId][fieldIdOrData] = value
+    }
   }
 
   function updateDesignContext(path: string, value: unknown) {
@@ -629,6 +639,8 @@ export function useEditorState() {
     deleteSlide,
     moveSlide,
     undo,
+    formData,
+    updateFormData,
     redo,
     saveNow,
     notify,
@@ -663,6 +675,10 @@ function makeElement(type: SlideElementType, slideId: string, order: number, pos
   if (type === 'image') return { ...common, width: 420, height: 260, src: content?.src ?? 'assets/studio-product-still-life.jpg', alt: content?.alt ?? translate('slide.image'), style: { objectFit: 'cover', stroke: 'var(--slide-line)', strokeWidth: 1 } }
   if (type === 'ellipse') return { ...common, width: 220, height: 160, style: { fill: 'var(--slide-accent-alt)', radius: 100 } }
   if (type === 'line' || type === 'arrow') return { ...common, width: 360, height: 4, style: { fill: 'var(--slide-accent)', stroke: 'var(--slide-accent)', strokeWidth: 3 } }
+  if (type === 'table') return { ...common, width: 500, height: 300, table: { headers: ['Header 1', 'Header 2'], rows: [['Val 1', 100], ['Val 2', 200]] } }
+  if (type === 'chart') return { ...common, width: 500, height: 300, chart: { unit: '%', type: 'bar', points: [{ label: 'Q1', value: 30 }, { label: 'Q2', value: 70 }] } }
+  if (type === 'form') return { ...common, width: 400, height: 350, form: { fields: [{ type: 'text', label: 'Name', id: 'name' }, { type: 'select', label: 'Role', id: 'role', options: ['Admin', 'User'] }] } }
+  if (type === 'embed') return { ...common, width: 500, height: 300, embed: { url: 'https://example.com' } }
   return { ...common, style: { fill: 'var(--slide-accent)', stroke: 'var(--slide-line)', strokeWidth: 1, radius: 8 } }
 }
 
