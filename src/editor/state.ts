@@ -5,6 +5,8 @@ import { getAtPath, setAtPath } from '@/domain/path'
 import { inspectDeck } from '@/domain/quality'
 import { parseDeck } from '@/domain/schema'
 import { elementTypeLabel, translate } from '@/i18n'
+import { cloneSnapshot } from '@/editor/history'
+import { normalizeImageAssetIds, normalizeSelectedLayoutCandidates } from '@/editor/persistence'
 import type { AlignmentGuide, DeckSpec, EditorSelection, ElementStyle, SlideElement, SlideElementType, SlideLayout, SlideSpec, TemplateId, TweakState } from '@/domain/types'
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error'
@@ -79,12 +81,12 @@ export function useEditorState() {
   }
 
   function commit(change: () => void) {
-    past.push(cloneValue(deck.value))
+    past.push(cloneSnapshot(deck.value))
     if (past.length > 60) past.shift()
     future.length = 0
     change()
     deck.value.updatedAt = new Date().toISOString()
-    deck.value = cloneValue(deck.value)
+    deck.value = cloneSnapshot(deck.value)
     scheduleSave()
   }
 
@@ -249,7 +251,7 @@ export function useEditorState() {
     const slide = deck.value.slides.find(item => item.id === slideId)
     let element = slide?.elements?.find(item => item.id === elementId)
     if (!slide || !element || element.locked) return elementId
-    const before = cloneValue(deck.value)
+    const before = cloneSnapshot(deck.value)
     let activeElementId = elementId
     let ids = selectedElementIds.value.includes(elementId) ? selectedElementIds.value : [elementId]
     if (duplicate && mode === 'move') {
@@ -258,7 +260,7 @@ export function useEditorState() {
       const clones = (slide.elements ?? [])
         .filter(item => sourceIds.includes(item.id) && !item.locked)
         .map((item, index) => {
-          const clone = cloneValue(item)
+          const clone = cloneSnapshot(item)
           clone.id = `${item.id}-drag-${Date.now().toString(36)}-${index}`
           clone.userEdited = true
           idMap.set(item.id, clone.id)
@@ -312,7 +314,7 @@ export function useEditorState() {
     }
     else Object.assign(element, next, { userEdited: true })
     interaction.changed = true
-    deck.value = cloneValue(deck.value)
+    deck.value = cloneSnapshot(deck.value)
   }
 
   function endElementInteraction() {
@@ -398,7 +400,7 @@ export function useEditorState() {
     const clones = (target.slide.elements ?? [])
       .filter(element => ids.includes(element.id) && !element.locked)
       .map((element, index) => {
-        const clone = cloneValue(element)
+        const clone = cloneSnapshot(element)
         clone.id = `${element.id}-copy-${Date.now().toString(36)}-${index}`
         clone.x = Math.min(1600 - clone.width, clone.x + 32)
         clone.y = Math.min(900 - clone.height, clone.y + 32)
@@ -476,7 +478,7 @@ export function useEditorState() {
   function duplicateSlide() {
     const slide = currentSlide.value
     if (!slide) return
-    const clone = cloneValue(slide)
+    const clone = cloneSnapshot(slide)
     clone.id = uniqueId('slide')
     const index = currentIndex.value + 1
     commit(() => deck.value.slides.splice(index, 0, clone))
@@ -505,7 +507,7 @@ export function useEditorState() {
   function undo() {
     const snapshot = past.pop()
     if (!snapshot) return
-    future.push(cloneValue(deck.value))
+    future.push(cloneSnapshot(deck.value))
     deck.value = snapshot
     ensureCurrentSlide()
     selection.value = null
@@ -515,7 +517,7 @@ export function useEditorState() {
   function redo() {
     const snapshot = future.pop()
     if (!snapshot) return
-    past.push(cloneValue(deck.value))
+    past.push(cloneSnapshot(deck.value))
     deck.value = snapshot
     ensureCurrentSlide()
     selection.value = null
@@ -526,8 +528,8 @@ export function useEditorState() {
     if (saveTimer) clearTimeout(saveTimer)
     saveState.value = 'saving'
     try {
-      normalizeImageAssetIds()
-      normalizeSelectedLayoutCandidates()
+      normalizeImageAssetIds(deck.value)
+      normalizeSelectedLayoutCandidates(deck.value)
       syncAssetManifest()
       const serialized = JSON.stringify(deck.value)
       localStorage.setItem(`creatppt:${deck.value.id}`, serialized)
@@ -566,36 +568,6 @@ export function useEditorState() {
     saveState.value = 'saving'
     if (saveTimer) clearTimeout(saveTimer)
     saveTimer = setTimeout(saveNow, 650)
-  }
-
-  function normalizeImageAssetIds() {
-    const sourceById = new Map<string, string>()
-    const usedIds = new Set<string>()
-    deck.value.slides.forEach((slide) => {
-      slide.images?.forEach((image, index) => {
-        const source = image.src
-        let assetId = image.assetId
-        if (!assetId || (sourceById.has(assetId) && sourceById.get(assetId) !== source)) {
-          const base = `${slide.id}-image-${index + 1}`
-          assetId = base
-          let suffix = 2
-          while (usedIds.has(assetId) || (sourceById.has(assetId) && sourceById.get(assetId) !== source)) {
-            assetId = `${base}-${suffix++}`
-          }
-          image.assetId = assetId
-        }
-        sourceById.set(assetId, source)
-        usedIds.add(assetId)
-      })
-    })
-  }
-
-  function normalizeSelectedLayoutCandidates() {
-    deck.value.slides.forEach((slide) => {
-      const selected = slide.layoutCandidates?.find(candidate => candidate.id === slide.selectedLayoutCandidate)
-      if (selected?.layout === slide.layout) return
-      slide.selectedLayoutCandidate = slide.layoutCandidates?.find(candidate => candidate.layout === slide.layout)?.id
-    })
   }
 
   function notify(tone: 'success' | 'error' | 'info', message: string) {
@@ -751,10 +723,6 @@ function syncAssetManifest() {
 
 function uniqueId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
-}
-
-function cloneValue<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value)) as T
 }
 
 function ensureCurrentSlide() {

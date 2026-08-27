@@ -1,16 +1,12 @@
 import type { TemplateId } from './types'
+import type { Box } from './geometry-layout'
 
 /**
  * Agenda geometry is shared by the editable scene, the semantic fallback
  * renderer, and the PPTX exporter. Keeping the rows here prevents a wrapped
  * bullet from being clipped by one renderer while looking correct in another.
  */
-export interface AgendaBox {
-  x: number
-  y: number
-  width: number
-  height: number
-}
+export type AgendaBox = Box
 
 export interface AgendaRowLayout {
   index: number

@@ -4,34 +4,23 @@ import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { createServer as createNetServer } from 'node:net'
-import { basename, dirname, extname, resolve } from 'node:path'
+import { basename, dirname, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { Command } from 'commander'
 import packageJson from '../package.json'
 import { createStarterDeck } from './demo/starter'
-import { adaptDashiGoal, looksLikeDashiGoal } from './domain/adapters'
-import { compileContentPlan, contentPlanFromInput } from './domain/content-plan'
 import { ensureDeckElements } from './domain/elements'
 import { inspectPipeline } from './domain/pipeline'
-import { contentInputFromBrief, contentInputFromBriefFile } from './domain/intake'
-import { planDeck } from './domain/planner'
-import { parseDeck, upgradeDeck } from './domain/schema'
-import { TEMPLATE_IDS, type DeckSpec, type DeckSourceKind, type PipelineStage, type QualityIssue, type TemplateId } from './domain/types'
+import { parseDeck } from './domain/schema'
+import { TEMPLATE_IDS, type DeckSpec, type PipelineStage, type QualityIssue } from './domain/types'
 import type { QualityReport } from './domain/pipeline-types'
 import { applyAssetChecksums, copyProjectAssets, inspectProjectAssets } from './cli-assets'
 import { projectExists } from './server/handlers'
 import { startCreatPptServer } from './server/server'
-
-type TemplateOption = TemplateId | 'auto'
-type CountOption = number | 'auto'
-type PortOption = number | 'auto'
-
-interface ReadDeckResult {
-  deck: DeckSpec
-  inputAssets?: string
-  sourceKind: DeckSourceKind
-}
+import { limitDeckSlides, normalizeSlides, normalizeVariants, parseCountOption, parsePortOption, parseTemplateOption, resolveConcreteTemplate, type CountOption, type PortOption } from './cli/options'
+import { printResult, summarizeMedia, summarizePlan, summarizeShowcase } from './cli/output'
+import { readDeckSource, type ReadDeckResult } from './cli/input'
 
 interface MaterializeResult {
   deck: DeckSpec
@@ -302,85 +291,6 @@ program.parseAsync().catch(error => {
   }
   process.exitCode = 1
 })
-
-async function readDeckSource(inputPath: string, template: TemplateOption, candidateCount: number, fallbackTitle?: string): Promise<ReadDeckResult> {
-  if (inputPath === '-') {
-    const rawText = await readStdin()
-    return readDeckSourceText(rawText, undefined, template, candidateCount, fallbackTitle)
-  }
-
-  const absolutePath = resolve(inputPath)
-  const extension = extname(absolutePath).toLowerCase()
-  if (extension === '.json') {
-    const raw = JSON.parse(await readFile(absolutePath, 'utf8'))
-    return compileJsonSource(raw, absolutePath, template, candidateCount)
-  }
-  const input = extension === '.html'
-    ? await contentInputFromBriefFile(absolutePath, { title: fallbackTitle, templateId: template === 'auto' ? undefined : template })
-    : contentInputFromBrief(await readFile(absolutePath, 'utf8'), {
-        title: fallbackTitle,
-        templateId: template === 'auto' ? undefined : template,
-        sourcePath: absolutePath,
-      })
-  const plan = contentPlanFromInput(input, {
-    templateId: template === 'auto' ? undefined : template,
-    sourceKind: input.source?.kind ?? 'markdown',
-    sourcePath: absolutePath,
-  })
-  return {
-    deck: compileContentPlan(plan, candidateCount),
-    inputAssets: resolve(dirname(absolutePath), 'assets'),
-    sourceKind: plan.source.kind,
-  }
-}
-
-function readDeckSourceText(rawText: string, sourcePath: string | undefined, template: TemplateOption, candidateCount: number, fallbackTitle?: string): ReadDeckResult {
-  const trimmed = rawText.trim()
-  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-    try {
-      return compileJsonSource(JSON.parse(trimmed), sourcePath, template, candidateCount)
-    }
-    catch (error) {
-      if (trimmed.startsWith('{')) throw error
-    }
-  }
-  const input = contentInputFromBrief(rawText, {
-    title: fallbackTitle,
-    templateId: template === 'auto' ? undefined : template,
-    sourcePath,
-  })
-  const plan = contentPlanFromInput(input, {
-    templateId: template === 'auto' ? undefined : template,
-    sourceKind: 'markdown',
-    sourcePath,
-  })
-  return { deck: compileContentPlan(plan, candidateCount), sourceKind: plan.source.kind }
-}
-
-function compileJsonSource(raw: unknown, sourcePath: string | undefined, template: TemplateOption, candidateCount: number): ReadDeckResult {
-  const sourceKind = sourcePath ? 'json' as const : 'agent' as const
-  if (looksLikeDashiGoal(raw)) {
-    const deck = planDeck(adaptDashiGoal(raw, {
-      templateId: resolveConcreteTemplate(template),
-      sourcePath,
-    }), { candidateCount, sourceKind: 'imported' })
-    return { deck, inputAssets: sourcePath ? resolve(dirname(sourcePath), 'assets') : undefined, sourceKind: 'imported' }
-  }
-  if (looksLikeDeckSpec(raw)) {
-    const deck = planDeck(upgradeDeck(raw), { candidateCount, sourceKind })
-    return { deck, inputAssets: sourcePath ? resolve(dirname(sourcePath), 'assets') : undefined, sourceKind }
-  }
-  const plan = contentPlanFromInput(raw, {
-    templateId: template === 'auto' ? undefined : template,
-    sourceKind,
-    sourcePath,
-  })
-  return {
-    deck: compileContentPlan(plan, candidateCount),
-    inputAssets: sourcePath ? resolve(dirname(sourcePath), 'assets') : undefined,
-    sourceKind: plan.source.kind,
-  }
-}
 
 async function materializeDeck(options: {
   deck: DeckSpec
@@ -705,106 +615,4 @@ function openBrowser(url: string): void {
   const [command, args] = platformCommands[process.platform] ?? platformCommands.linux
   const child = spawn(command, args, { detached: true, stdio: 'ignore' })
   child.unref()
-}
-
-function printResult(json: boolean, result: Record<string, unknown>): void {
-  if (json) process.stdout.write(`${JSON.stringify(result)}\n`)
-  else if (result.url) process.stdout.write(`CreatPPT workspace: ${result.url}\n`)
-  else if (result.stopped) process.stdout.write(`CreatPPT workspace stopped: ${result.projectDir}\n`)
-  else if (result.health) process.stdout.write(`CreatPPT workspace healthy: ${result.projectDir}\n`)
-  else process.stdout.write(`Web deck created: ${result.projectDir}\n${result.next ?? ''}\n`)
-}
-
-function summarizeMedia(deck: DeckSpec): { total: number; automatic: number; manual: number; uniqueSources: number } {
-  const images = deck.slides.flatMap(slide => slide.images ?? [])
-  const automatic = images.filter(image => image.provenance?.source === 'CreatPPT starter asset').length
-  return {
-    total: images.length,
-    automatic,
-    manual: images.length - automatic,
-    uniqueSources: new Set(images.map(image => image.src)).size,
-  }
-}
-
-function parseTemplateOption(value?: string): TemplateOption {
-  if (value === 'signal' || value === 'studio' || value === 'editorial') return value
-  if (!value || value === 'auto') return 'auto'
-  throw new Error(`Unknown template '${value}'. Use: auto, ${TEMPLATE_IDS.join(', ')}.`)
-}
-
-function resolveConcreteTemplate(value: TemplateOption): TemplateId {
-  return value === 'signal' || value === 'studio' ? value : 'editorial'
-}
-
-function parseCountOption(value: string): CountOption {
-  if (value === 'auto') return 'auto'
-  const parsed = Number.parseInt(value, 10)
-  if (!Number.isFinite(parsed) || parsed < 1) throw new Error(`Invalid count: ${value}`)
-  return parsed
-}
-
-function parsePortOption(value: string): PortOption {
-  if (value === 'auto') return 'auto'
-  const parsed = Number.parseInt(value, 10)
-  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 65535) throw new Error(`Invalid port: ${value}`)
-  return parsed
-}
-
-function normalizeVariants(value: unknown): number {
-  const parsed = Number(value)
-  if (!Number.isFinite(parsed)) return 2
-  return Math.min(3, Math.max(1, Math.trunc(parsed)))
-}
-
-function normalizeSlides(value: unknown): CountOption {
-  if (value === 'auto' || value === undefined) return 'auto'
-  const parsed = Number(value)
-  if (!Number.isFinite(parsed)) return 'auto'
-  return Math.min(60, Math.max(2, Math.trunc(parsed)))
-}
-
-function limitDeckSlides(deck: DeckSpec, count: CountOption): DeckSpec {
-  if (count === 'auto' || deck.slides.length <= count) return deck
-  const middleCount = Math.max(0, count - 2)
-  const cover = deck.slides[0]
-  const closing = deck.slides.at(-1)
-  if (!cover || !closing || count < 2) return deck
-  return { ...deck, slides: [cover, ...deck.slides.slice(1, -1).slice(0, middleCount), closing] }
-}
-
-function looksLikeDeckSpec(input: unknown): input is Record<string, unknown> {
-  return Boolean(input && typeof input === 'object' && !Array.isArray(input)
-    && Array.isArray((input as Record<string, unknown>).slides)
-    && typeof (input as Record<string, unknown>).templateId === 'string'
-    && typeof (input as Record<string, unknown>).version === 'number')
-}
-
-function summarizeShowcase(deck: DeckSpec) {
-  const report = inspectPipeline(deck, { showcase: true })
-  const checkedSlideIds = deck.slides.slice(0, 2).map(slide => slide.id)
-  return {
-    ok: report.ok,
-    checkedSlideIds,
-    issueCount: report.issues.length,
-    blockingIssues: report.issues.filter(issue => issue.severity === 'error').length,
-  }
-}
-
-function summarizePlan(deck: DeckSpec) {
-  return deck.slides.map(slide => ({
-    id: slide.id,
-    layout: slide.layout,
-    candidates: slide.layoutCandidates?.map(candidate => candidate.layout) ?? [],
-    budget: slide.contentBudget,
-  }))
-}
-
-function readStdin(): Promise<string> {
-  if (process.stdin.isTTY) return Promise.reject(new Error('No stdin input available; pipe a brief when using --from -.'))
-  return new Promise((resolveInput, reject) => {
-    const chunks: Buffer[] = []
-    process.stdin.on('data', chunk => chunks.push(Buffer.from(chunk)))
-    process.stdin.on('end', () => resolveInput(Buffer.concat(chunks).toString('utf8')))
-    process.stdin.on('error', reject)
-  })
 }

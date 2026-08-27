@@ -15,6 +15,8 @@ export const PPTX_WIDE = {
   unitsPerInch: 120,
 } as const
 
+export { alignCenter, box, inset, type Box, type Insets } from './geometry-layout'
+
 export function canvasToInches(value: number): number {
   return Number((value / PPTX_WIDE.unitsPerInch).toFixed(4))
 }

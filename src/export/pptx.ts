@@ -4,14 +4,12 @@ import type { DeckSpec, ImageAsset, SlideElement, SlideSpec, TemplateDefinition,
 import { getAtPath } from '@/domain/path'
 import { getAgendaLayout } from '@/domain/agenda'
 import { getTemplate } from '@/domain/templates'
-import { resolveAssetUrl } from '@/utils/assets'
 import { CANVAS, PPTX_WIDE, canvasToInches } from '@/domain/geometry'
+import { clearImageCache, loadImageData } from './media'
 
 type PptxInstance = InstanceType<typeof pptxgen>
 type PptxSlide = ReturnType<PptxInstance['addSlide']>
 type TextOptions = pptxgen.TextPropsOptions
-
-const imageCache = new Map<string, Promise<string>>()
 
 export interface PptxValidationIssue {
   code: string
@@ -40,7 +38,7 @@ export async function exportDeckToPptx(deck: DeckSpec): Promise<void> {
 export async function buildPptxBlob(deck: DeckSpec): Promise<Blob> {
   // A relative asset path can point to different files in different workspaces.
   // Keep reuse scoped to one export so a previous project cannot leak media into it.
-  imageCache.clear()
+  clearImageCache()
   const pptx = new pptxgen()
   const template = applyTweaks(getTemplate(deck.templateId), deck.tweaks)
   pptx.layout = 'LAYOUT_WIDE'
@@ -551,42 +549,6 @@ async function addImage(slide: PptxSlide, image: ImageAsset | undefined, x: numb
     x: px(x), y: px(y), w: px(w), h: px(h),
     sizing: { type: 'cover', w: px(w), h: px(h) },
     altText: image.alt,
-  })
-}
-
-function loadImageData(source: string): Promise<string> {
-  const cached = imageCache.get(source)
-  if (cached) return cached
-  const promise = fetchImageData(source)
-  imageCache.set(source, promise)
-  return promise
-}
-
-async function fetchImageData(source: string): Promise<string> {
-  const response = await fetch(resolveAssetUrl(source))
-  if (!response.ok) throw new Error(`无法读取导出图片：${source}`)
-  const blob = await response.blob()
-  if (!['image/jpeg', 'image/png', 'image/webp'].includes(blob.type)) {
-    throw new Error(`不支持的图片格式：${blob.type || 'unknown'}`)
-  }
-  const bytes = new Uint8Array(await blob.arrayBuffer())
-  if (!isAllowedImage(bytes, blob.type)) throw new Error('图片内容与声明格式不一致。')
-  return blobToDataUrl(new Blob([bytes], { type: blob.type }))
-}
-
-function isAllowedImage(bytes: Uint8Array, mime: string): boolean {
-  if (mime === 'image/png') return bytes.length > 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47
-  if (mime === 'image/jpeg') return bytes.length > 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff
-  if (mime === 'image/webp') return bytes.length > 12 && String.fromCharCode(...bytes.slice(0, 4)) === 'RIFF' && String.fromCharCode(...bytes.slice(8, 12)) === 'WEBP'
-  return false
-}
-
-function blobToDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result))
-    reader.onerror = () => reject(reader.error ?? new Error('无法读取图片。'))
-    reader.readAsDataURL(blob)
   })
 }
 
