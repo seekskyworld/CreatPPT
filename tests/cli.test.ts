@@ -12,7 +12,9 @@ const tsconfig = resolve('tsconfig.json')
 const cliSource = resolve('src/cli.ts')
 
 function runTsx(args: string[], input?: string, cwd = resolve('.')) {
-  return spawnSync(tsxCommand, [tsxCli, '--tsconfig', tsconfig, ...args], { cwd, encoding: 'utf8', input })
+  const env: NodeJS.ProcessEnv = { ...process.env, NO_COLOR: '1' }
+  delete env.FORCE_COLOR
+  return spawnSync(tsxCommand, [tsxCli, '--tsconfig', tsconfig, ...args], { cwd, encoding: 'utf8', input, env })
 }
 
 describe('Agent CLI', () => {

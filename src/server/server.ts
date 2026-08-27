@@ -1,7 +1,7 @@
 import { createReadStream } from 'node:fs'
 import { createServer, type Server } from 'node:http'
 import { stat } from 'node:fs/promises'
-import { extname, resolve } from 'node:path'
+import { extname, relative, resolve, sep } from 'node:path'
 import { handleProjectRequest } from './handlers'
 
 export interface ServerOptions {
@@ -39,11 +39,13 @@ export async function startCreatPptServer(options: ServerOptions): Promise<{ ser
 }
 
 async function serveClient(urlValue: string, response: import('node:http').ServerResponse, clientDir: string) {
-  const pathname = decodeURIComponent(new URL(urlValue, 'http://127.0.0.1').pathname)
+  // 先解码原始路径，避免 URL 解析器提前折叠编码后的 '..' 段而绕过根目录检查。
+  const rawPathname = urlValue.split('?', 1)[0] || '/'
+  const pathname = decodeURIComponent(rawPathname)
   const requested = pathname === '/' ? 'index.html' : pathname.slice(1)
   const target = resolve(clientDir, requested)
   const root = resolve(clientDir)
-  if (!target.startsWith(`${root}/`) && target !== root) {
+  if (!isWithinRoot(root, target)) {
     response.statusCode = 403
     response.end('Forbidden')
     return
@@ -63,6 +65,15 @@ async function serveClient(urlValue: string, response: import('node:http').Serve
   if (finalTarget.endsWith('index.html')) response.setHeader('Cache-Control', 'no-cache')
   else response.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
   createReadStream(finalTarget).pipe(response)
+}
+
+/**
+ * 判断解析后的请求路径是否仍位于静态资源根目录内，兼容各操作系统的路径分隔符。
+ * 使用 relative 而不是字符串前缀，避免 Windows 反斜杠导致合法路径被误判为越界。
+ */
+export function isWithinRoot(root: string, target: string): boolean {
+  const relativePath = relative(root, target)
+  return relativePath === '' || (relativePath !== '..' && !relativePath.startsWith(`..${sep}`) && !relativePath.startsWith(sep))
 }
 
 function clientMimeType(path: string): string {

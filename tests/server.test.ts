@@ -4,7 +4,18 @@ import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { createStarterDeck } from '@/demo/starter'
+import { startCreatPptServer, isWithinRoot } from '@/server/server'
 import { handleProjectRequest } from '@/server/handlers'
+
+describe('static client path boundaries', () => {
+  it('allows the root and descendants while rejecting traversal', () => {
+    const root = resolve('/tmp/creatppt-client')
+    expect(isWithinRoot(root, resolve(root, 'index.html'))).toBe(true)
+    expect(isWithinRoot(root, resolve(root, 'assets/app.js'))).toBe(true)
+    expect(isWithinRoot(root, resolve(root, '..', 'outside.html'))).toBe(false)
+    expect(isWithinRoot(root, resolve('/tmp/creatppt-client-elsewhere'))).toBe(false)
+  })
+})
 
 describe('local project API', () => {
   it('validates saves and blocks asset traversal', async () => {
@@ -37,6 +48,27 @@ describe('local project API', () => {
       const saved = await requestJson(port, '/api/deck', { method: 'PUT', body: JSON.stringify(next) })
       expect(saved.status).toBe(200)
       expect(JSON.parse(await readFile(resolve(root, 'deck.json'), 'utf8')).title).toBe('Updated server contract')
+    }
+    finally {
+      await new Promise<void>(resolveClose => server.close(() => resolveClose()))
+    }
+  })
+})
+
+describe('static client serving', () => {
+  it('serves the macOS root route, assets, and SPA fallback', async () => {
+    const root = await mkdtemp(resolve(tmpdir(), 'creatppt-client-'))
+    await mkdir(resolve(root, 'assets'), { recursive: true })
+    await writeFile(resolve(root, 'index.html'), '<!doctype html><title>CreatPPT</title>', 'utf8')
+    await writeFile(resolve(root, 'assets', 'app.js'), 'console.log(1)', 'utf8')
+    const { server, url } = await startCreatPptServer({ projectDir: root, clientDir: root, port: 0 })
+    const port = Number(new URL(url).port)
+
+    try {
+      expect((await requestText(port, '/')).status).toBe(200)
+      expect((await requestText(port, '/assets/app.js')).status).toBe(200)
+      expect((await requestText(port, '/editor')).status).toBe(200)
+      expect((await requestText(port, '/%2e%2e/%2e%2e/etc/passwd')).status).toBe(403)
     }
     finally {
       await new Promise<void>(resolveClose => server.close(() => resolveClose()))
