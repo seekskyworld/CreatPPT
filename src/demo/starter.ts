@@ -225,7 +225,10 @@ function replaceSlideImages(slide: SlideSpec | undefined, desired: StarterImage[
 }
 
 function cloneImage(image: StarterImage): StarterImage {
-  return { ...image }
+  return {
+    ...image,
+    provenance: image.provenance ?? { kind: 'local', source: 'CreatPPT starter asset' },
+  }
 }
 
 function slugify(input: string): string {

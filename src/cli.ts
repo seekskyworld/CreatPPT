@@ -117,6 +117,7 @@ program
       warnings: materialized.quality.issues.filter(issue => issue.severity === 'warning'),
       copiedFiles: materialized.copiedFiles,
       usedStarterAssets: materialized.usedFallback,
+      media: summarizeMedia(materialized.deck),
       pptxGenerated: false,
       elapsedMs: Date.now() - startedAt,
       ...(server ? { url: server.url } : {}),
@@ -169,6 +170,7 @@ program
       warnings: materialized.quality.issues.filter(issue => issue.severity === 'warning'),
       copiedFiles: materialized.copiedFiles,
       usedStarterAssets: materialized.usedFallback,
+      media: summarizeMedia(materialized.deck),
       next: `creatppt serve ${JSON.stringify(outputDir)} --open`,
     })
   })
@@ -711,6 +713,17 @@ function printResult(json: boolean, result: Record<string, unknown>): void {
   else if (result.stopped) process.stdout.write(`CreatPPT workspace stopped: ${result.projectDir}\n`)
   else if (result.health) process.stdout.write(`CreatPPT workspace healthy: ${result.projectDir}\n`)
   else process.stdout.write(`Web deck created: ${result.projectDir}\n${result.next ?? ''}\n`)
+}
+
+function summarizeMedia(deck: DeckSpec): { total: number; automatic: number; manual: number; uniqueSources: number } {
+  const images = deck.slides.flatMap(slide => slide.images ?? [])
+  const automatic = images.filter(image => image.provenance?.source === 'CreatPPT starter asset').length
+  return {
+    total: images.length,
+    automatic,
+    manual: images.length - automatic,
+    uniqueSources: new Set(images.map(image => image.src)).size,
+  }
 }
 
 function parseTemplateOption(value?: string): TemplateOption {

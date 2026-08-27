@@ -31,7 +31,12 @@ describe('Agent CLI', () => {
     ])
 
     expect(result.status, result.stderr).toBe(0)
-    expect(JSON.parse(result.stdout)).toMatchObject({ ok: true, pptxGenerated: false, showcase: { ok: true } })
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      ok: true,
+      pptxGenerated: false,
+      showcase: { ok: true },
+      media: { total: 2, automatic: 2, manual: 0, uniqueSources: 2 },
+    })
     const entries = await readdir(output)
     expect(entries).toContain('deck.json')
     expect(entries).toContain('assets')

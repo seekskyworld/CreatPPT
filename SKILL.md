@@ -53,6 +53,31 @@ delivery/
 
 Treat `pptxGenerated: false` as an invariant of this stage. Return the delivery path and, when requested, the workspace URL; do not attach a PPTX.
 
+The JSON result also includes a `media` summary (`total`, `automatic`, `manual`,
+and `uniqueSources`). Agents can use it to report what was actually placed on
+pages; `copiedFiles` still describes the full local library kept for template
+switching.
+
+## DeepSeek Harness integration
+
+When CreatPPT is installed as a DeepSeek Harness bundle, prefer the registered
+`create_presentation` tool instead of constructing a shell command. The tool
+accepts an optional `title`, inline Markdown/plain-text `brief`, `template`,
+`slides`, `outputDir`, and `assetsDir`, then returns the same delivery summary
+plus a Web workspace URL. It invokes the normal CLI in a child process and
+forwards cancellation, so the default npx workflow and its confirmation-free
+handoff remain unchanged.
+
+Install the bundle into a Harness profile with:
+
+```bash
+dsh plugin --profile web add @seekskyworld/creatppt
+```
+
+The package declares `dsh.bundle` and mounts `@seekskyworld/creatppt/dsh` via
+`cordis.patch.yml`. Do not add a second approval step or export PPTX from the
+tool; the person still reviews the returned workspace and explicitly exports.
+
 ## Human editing handoff
 
 The generated Web workspace is the human editing surface. It renders a finished deck immediately, then allows direct manipulation of independent text, image, rectangle, ellipse, line, and arrow elements: click or double-click text to edit, drag to move, marquee-select and multi-move, snap to canvas/peer guides, resize with handles, rotate, drop text/images onto the canvas, use the inspector for geometry and styles, and use undo/redo or keyboard nudges for precision. Changes are autosaved to `deck.json`.
@@ -128,3 +153,7 @@ The planner supports `cover`, `agenda`, `statement`, `metrics`, `split`, `compar
 - If an image blocks export, replace it with a valid local JPEG, PNG, or WebP and retry from the preserved Web editor state.
 
 Maintainers adding a new starter PNG should run `npm run assets:compress` before publishing. The command is build-time only and is intentionally not part of `prepack`.
+
+To add a template, add one entry to the template registry and its six images,
+then run the normal test/build commands. This is a maintainer workflow; Agents
+do not need to change their generation command.

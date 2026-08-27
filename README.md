@@ -184,6 +184,26 @@ npx @seekskyworld/creatppt@latest create --from ./brief.md \
 
 If you want to create first and open later, omit `--serve --open`, then run `npx @seekskyworld/creatppt@latest serve ./delivery --open`.
 
+### Use from DeepSeek Harness
+
+CreatPPT is also distributed as an installable DeepSeek Harness bundle. Install it into a profile with the Harness CLI:
+
+```bash
+dsh plugin --profile web add @seekskyworld/creatppt
+```
+
+The bundle registers one model-callable `create_presentation` tool. Give it a title or brief; it runs the same CreatPPT pipeline and returns the delivery directory, Web workspace URL, page count, media summary, and warnings. The normal `npx` command remains available, and the bundle does not add a second confirmation flow or a native Harness UI.
+
+For local development, build the repository first, then install the checkout into a profile:
+
+```bash
+npm ci
+npm run build
+dsh plugin --profile web add .
+```
+
+The bundle manifest is `dsh.bundle` in `package.json`; `cordis.patch.yml` mounts the `@seekskyworld/creatppt/dsh` entry point. DeepSeek Harness is currently a technical preview, so test against a compatible Harness release before publishing a new bundle version.
+
 ### Run from a local checkout
 
 ```bash
@@ -219,6 +239,11 @@ template switch has local assets available. Images explicitly supplied by an
 Agent or user are preserved as authored and are not de-duplicated. Keep the
 returned URL available until review is complete; `stop` makes that URL
 unavailable.
+
+The JSON response includes `media.total`, `media.automatic`, `media.manual`, and
+`media.uniqueSources`, so an Agent can report actual page usage separately from
+the complete copied starter library. Maintainers adding a template should add a
+registry entry and six images, then run the normal test and build commands.
 
 ### Human vs Agent responsibilities
 

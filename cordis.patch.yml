@@ -1,0 +1,3 @@
+- insert:
+    - id: creatppt-tool
+      name: '@seekskyworld/creatppt/dsh'

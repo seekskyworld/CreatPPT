@@ -184,6 +184,26 @@ npx @seekskyworld/creatppt@latest create --from ./brief.md \
 
 如果只想先创建文件、之后再打开，可以去掉 `--serve --open`，再运行 `npx @seekskyworld/creatppt@latest serve ./delivery --open`。
 
+### 在 DeepSeek Harness 中使用
+
+CreatPPT 同时作为可安装的 DeepSeek Harness bundle 发布。使用 Harness CLI 安装到 profile：
+
+```bash
+dsh plugin --profile web add @seekskyworld/creatppt
+```
+
+bundle 会注册一个可供模型调用的 `create_presentation` 工具。传入标题或 brief 后，它复用同一条 CreatPPT 流程，并返回交付目录、网页工作区 URL、页数、图片摘要和警告。普通 `npx` 命令仍然可用；bundle 不会增加第二套确认流程，也不提供额外的原生 Harness UI。
+
+本地开发时先构建仓库，再将当前 checkout 安装到 profile：
+
+```bash
+npm ci
+npm run build
+dsh plugin --profile web add .
+```
+
+bundle 清单位于 `package.json` 的 `dsh.bundle`，`cordis.patch.yml` 负责挂载 `@seekskyworld/creatppt/dsh` 入口。DeepSeek Harness 目前仍是技术预览版，发布新的 bundle 版本前请针对兼容的 Harness 版本进行验证。
+
 ### 从源码运行
 
 ```bash
@@ -213,6 +233,8 @@ npx @seekskyworld/creatppt@latest stop ./delivery --json
 JSON 结果包含 `projectDir`、`deckPath`、schema 版本、质量摘要、URL、PID，以及固定的 `pptxGenerated: false`。Agent 不应打开空白编辑器让人审批，不应手动解压 starter 素材，也不应在用户要求前导出 PPTX。
 
 每个模板拥有 6 张 starter 图片。自动填充只使用当前模板图片池，按稳定顺序分配，并保证同一 deck 内自动插入的图片不重复。其余 starter 图片被复制到交付目录，只是为了后续切换模板时本地资源仍然可用。Agent 或用户明确指定的图片按原样保留，不参与自动去重。网页审阅完成前请保留返回的 URL；执行 `stop` 后该 URL 会失效。
+
+JSON 响应包含 `media.total`、`media.automatic`、`media.manual` 和 `media.uniqueSources`，Agent 可以据此汇报页面实际使用的图片，而不是把复制到目录的完整 starter 图片库当成已使用素材。维护者新增模板时增加一个注册对象和 6 张图片，然后运行常规测试和构建命令。
 
 ### 人与 Agent 的职责
 
