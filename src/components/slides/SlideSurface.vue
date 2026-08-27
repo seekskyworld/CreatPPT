@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { getElementBounds } from '@/domain/alignment'
 import { getAgendaLayout } from '@/domain/agenda'
 import { CANVAS } from '@/domain/geometry'
@@ -31,6 +31,31 @@ const template = computed(() => getTemplate(props.templateId))
 const editor = useEditorState()
 const { t } = useI18n()
 const surface = ref<HTMLElement>()
+const isAnimated = ref(false)
+let observer: IntersectionObserver | null = null
+
+onMounted(() => {
+  if (surface.value && (props.slide.animations?.length || props.slide.elements?.some(e => e.animation))) {
+    observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          isAnimated.value = true
+        }
+      })
+    }, { threshold: 0.2 })
+    observer.observe(surface.value)
+  } else {
+    isAnimated.value = true
+  }
+})
+
+onUnmounted(() => {
+  if (observer) {
+    observer.disconnect()
+    observer = null
+  }
+})
+
 const marquee = ref<{ active: boolean; x: number; y: number; width: number; height: number; additive: boolean; startX: number; startY: number }>({
   active: false,
   x: 0,
@@ -178,7 +203,7 @@ function handleDrop(event: DragEvent) {
   <article
     ref="surface"
     class="slide-surface"
-    :class="[`layout-${slide.layout}`, `template-${templateId}`, `density-${tweaks.density}`]"
+    :class="[`layout-${slide.layout}`, `template-${templateId}`, `density-${tweaks.density}`, { 'is-animated': isAnimated }]"
     :data-layout="slide.layout"
     :data-template="templateId"
     :style="tokenStyle"

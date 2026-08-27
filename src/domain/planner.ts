@@ -146,6 +146,8 @@ function scoreLayout(slide: SlideSpec, layout: SlideLayout): number {
   const columnCount = slide.columns?.length ?? 0
   const stepCount = slide.steps?.length ?? 0
   const chartCount = slide.chart?.points.length ?? 0
+  const hasTable = slide.elements?.some(e => e.type === 'table' || Boolean(e.table))
+  const hasForm = slide.elements?.some(e => e.type === 'form' || Boolean(e.form))
 
   if (layout === 'cover') score += imageCount ? 5 : -2
   if (layout === 'split') score += imageCount ? 7 : -4
@@ -154,8 +156,8 @@ function scoreLayout(slide: SlideSpec, layout: SlideLayout): number {
   if (layout === 'metrics') score += statCount ? 8 + Math.min(4, statCount) : -4
   if (layout === 'comparison') score += columnCount ? 7 + Math.min(3, columnCount) : -3
   if (layout === 'timeline') score += stepCount ? 7 + Math.min(3, stepCount) : -3
-  if (layout === 'chart') score += chartCount ? 9 : -5
-  if (layout === 'agenda') score += bulletCount >= 3 ? 5 : 0
+  if (layout === 'chart') score += (chartCount || hasTable) ? 9 : -5
+  if (layout === 'agenda') score += (bulletCount >= 3 || hasForm) ? 5 : 0
   if (layout === 'statement') score += slide.title && !bulletCount && !statCount ? 5 : 1
   if (layout === 'closing') score += slide.layout === 'closing' ? 4 : 0
 
@@ -164,7 +166,7 @@ function scoreLayout(slide: SlideSpec, layout: SlideLayout): number {
 
 function rationaleFor(layout: SlideLayout, slide: SlideSpec): string {
   if (layout === slide.layout) return 'Keep the authored page intent.'
-  if (layout === 'chart' && slide.chart) return 'Structured data works best as a chart.'
+  if (layout === 'chart' && (slide.chart || slide.elements?.some(e => e.type === 'table'))) return 'Structured data works best as a chart or table.'
   if (layout === 'metrics' && slide.stats?.length) return 'The metric count suits a focused number layout.'
   if (layout === 'split' && slide.images?.length) return 'Image and explanation create a left-right narrative.'
   if (layout === 'gallery' && (slide.images?.length ?? 0) >= 2) return 'Multiple real assets work as an evidence gallery.'

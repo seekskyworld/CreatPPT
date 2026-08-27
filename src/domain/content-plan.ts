@@ -58,6 +58,32 @@ export function contentPlanFromInput(raw: unknown, options: ContentPlanOptions =
   }
 }
 
+function detectTablePattern(text?: string): { headers: string[]; rows: (string | number)[][] } | null {
+  if (!text) return null
+  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
+  if (lines.length < 2) return null
+  const firstLine = lines[0]
+  if (firstLine.includes('|')) {
+    const headers = firstLine.split('|').map(s => s.trim()).filter(Boolean)
+    if (headers.length >= 2) {
+      const rows = lines.slice(1)
+        .filter(line => !/^[:|-]+$/.test(line.replace(/\s+/g, '')))
+        .map(line => line.split('|').map(s => s.trim()).filter(Boolean))
+        .filter(r => r.length > 0)
+      if (rows.length >= 1) {
+        return {
+          headers,
+          rows: rows.map(r => r.map(cell => {
+            const num = Number(cell)
+            return !isNaN(num) && cell !== '' ? num : cell
+          })),
+        }
+      }
+    }
+  }
+  return null
+}
+
 /** Convert a semantic plan into a DeckSpec while keeping layout decisions explicit. */
 export function deckFromContentPlan(plan: ContentPlan): DeckSpec {
   const english = !/^zh/i.test(plan.designContext.language ?? '')
@@ -65,12 +91,10 @@ export function deckFromContentPlan(plan: ContentPlan): DeckSpec {
   const fallbackHero = fallbackImage(plan.templateId, true, `${plan.id}-cover-hero`, english)
   const starterPool = starterImagePool(plan.templateId)
   const usedAutomaticSources = new Set<string>()
-  // A role-tagged asset is the most explicit cover choice. For backwards
-  // compatibility with the template fallback contract, also inherit metadata
-  // when an Agent supplies an asset at the fallback path.
   const heroAsset = findRoleAsset(plan.assets, 'cover') ?? plan.assets.find(asset => asset.src === fallbackHero.src)
   const heroImage = heroAsset ? mergePlanAsset(fallbackHero, heroAsset) : fallbackHero
   if (!heroAsset) usedAutomaticSources.add(heroImage.src)
+
   const slides: SlideSpec[] = [{
     id: `${plan.id}-cover`,
     layout: 'cover',
@@ -109,6 +133,23 @@ export function deckFromContentPlan(plan: ContentPlan): DeckSpec {
       const automaticImages = takeAutomaticImages(starterPool, usedAutomaticSources, count, `${block.title ?? plan.title} ${english ? 'image' : '配图'}`)
       if (automaticImages.length) base.images = automaticImages
     }
+
+    // Data-aware pattern detection: detect table data in block body
+    const tablePattern = detectTablePattern(block.body)
+    if (tablePattern) {
+      base.elements ||= []
+      base.elements.push({
+        id: `${base.id}-table-1`,
+        type: 'table',
+        x: 100,
+        y: 250,
+        width: 1400,
+        height: 450,
+        table: tablePattern,
+        userEdited: false,
+      })
+    }
+
     slides.push(base)
   })
 

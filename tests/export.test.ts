@@ -107,4 +107,17 @@ describe('on-demand PPTX export', () => {
     expect(slideXml).toMatch(/<p:pic\b/)
     expect((await inspectPptxBlob(blob, 1)).ok).toBe(true)
   }, 20_000)
+
+  it('injects <p:timing> nodes when animations are present in the deck', async () => {
+    const deck = createStarterDeck('Animation PPTX contract', 'signal', 1)
+    deck.slides = deck.slides.slice(0, 1).map(slide => ({ ...slide, layout: 'statement', images: undefined }))
+    deck.slides[0].animations = [{ trigger: 'onClick', effect: 'fade' }]
+    const blob = await buildPptxBlob(deck)
+    const zip = await JSZip.loadAsync(await blob.arrayBuffer())
+    const slideXml = await zip.file('ppt/slides/slide1.xml')?.async('text')
+    expect(slideXml).toContain('<p:timing>')
+    expect(slideXml).toContain('</p:timing>')
+    const report = await inspectPptxBlob(blob, 1)
+    expect(report.ok).toBe(true)
+  }, 20_000)
 })

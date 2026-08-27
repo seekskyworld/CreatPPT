@@ -131,12 +131,79 @@ export interface ChartPoint {
   value: number
 }
 
+export type ChartType = 'bar' | 'pie' | 'line' | 'scatter' | 'area'
+
 export interface ChartSpec {
   unit?: string
   points: ChartPoint[]
+  type?: ChartType
+  chartType?: ChartType
 }
 
-export const SLIDE_ELEMENT_TYPES = ['text', 'image', 'rect', 'ellipse', 'line', 'arrow'] as const
+export interface TableMergeCell {
+  row: number
+  col: number
+  rowspan?: number
+  colspan?: number
+  rowSpan?: number
+  colSpan?: number
+}
+
+export interface TableSpec {
+  headers: string[]
+  rows: (string | number)[][]
+  formulas?: Record<string, string>
+  mergeCells?: TableMergeCell[]
+}
+
+export interface FormField {
+  id?: string
+  name?: string
+  type: 'text' | 'textarea' | 'select' | 'radio' | 'checkbox' | 'number' | string
+  label: string
+  options?: string[]
+  value?: any
+}
+
+export interface FormSpec {
+  fields: FormField[]
+  submitAction?: string | ActionSpec
+}
+
+export interface EmbedSpec {
+  url: string
+  sandbox?: string | boolean
+  fallbackImage?: string
+}
+
+export interface AnimationSpec {
+  id?: string
+  targetElementId?: string
+  trigger: 'onClick' | 'afterPrevious' | 'withPrevious'
+  effect: 'appear' | 'fade' | 'flyIn'
+  delay?: number
+  duration?: number
+}
+
+export interface ActionSpec {
+  type: 'slideJump' | 'url' | 'hyperlink'
+  target: string | number
+}
+
+export const SLIDE_ELEMENT_TYPES = [
+  'text',
+  'image',
+  'rect',
+  'ellipse',
+  'line',
+  'arrow',
+  'table',
+  'chart',
+  'form',
+  'embed',
+  'animation',
+  'action',
+] as const
 export type SlideElementType = (typeof SLIDE_ELEMENT_TYPES)[number]
 export type ElementTextAlign = 'left' | 'center' | 'right'
 
@@ -173,6 +240,12 @@ export interface SlideElement {
   alt?: string
   path?: string
   style?: ElementStyle
+  table?: TableSpec
+  chart?: ChartSpec
+  form?: FormSpec
+  embed?: EmbedSpec
+  animation?: AnimationSpec
+  action?: ActionSpec
 }
 
 export interface AlignmentGuide {
@@ -204,6 +277,8 @@ export interface SlideSpec {
   footer?: string
   notes?: string
   elements?: SlideElement[]
+  animations?: AnimationSpec[]
+  actions?: ActionSpec[]
 }
 
 export interface DeckSpec {

@@ -7,6 +7,10 @@ import type { SlideElement } from '@/domain/types'
 import { useEditorState } from '@/editor/state'
 import { elementTypeLabel, useI18n } from '@/i18n'
 import { resolveAssetUrl } from '@/utils/assets'
+import EditableTable from './EditableTable.vue'
+import EditableChart from './EditableChart.vue'
+import EditableForm from './EditableForm.vue'
+import EmbedView from './EmbedView.vue'
 
 const props = withDefaults(defineProps<{
   element: SlideElement
@@ -70,7 +74,22 @@ function elementLabel(): string {
   return elementTypeLabel(props.element.type)
 }
 
+function handleActionClick(event: MouseEvent) {
+  if (props.element.action) {
+    const { type, target } = props.element.action
+    if (type === 'slideJump') {
+      const slide = editor.deck.value.slides.find(s => s.id === String(target)) || editor.deck.value.slides[Number(target) - 1]
+      if (slide) editor.selectSlide(slide.id)
+    } else if (type === 'url' || type === 'hyperlink') {
+      if (target) window.open(String(target), '_blank')
+    }
+  }
+}
+
 function select(event?: Event) {
+  if (props.element.action && !props.editable) {
+    handleActionClick(event as MouseEvent)
+  }
   if (!props.editable) return
   event?.stopPropagation()
   const pointer = event as PointerEvent | MouseEvent | undefined
@@ -383,6 +402,10 @@ function handleKeydown(event: KeyboardEvent) {
       @keydown="handleKeydown"
     >{{ element.text }}</div>
     <img v-else-if="element.type === 'image'" class="scene-image-content" :src="imageSource" :alt="element.alt ?? ''" :style="contentStyle" draggable="false" />
+    <EditableTable v-else-if="element.type === 'table' && element.table" :table="element.table" :editable="editable" />
+    <EditableChart v-else-if="element.type === 'chart' && element.chart" :chart="element.chart" :editable="editable" />
+    <EditableForm v-else-if="element.type === 'form' && element.form" :form="element.form" :slide-id="slideId" :editable="editable" :initial-data="editor.formData.value[slideId]" @update:form-data="(data) => editor.updateFormData(slideId, data)" />
+    <EmbedView v-else-if="element.type === 'embed' && element.embed" :embed="element.embed" :editable="editable" />
     <span v-else class="scene-shape-content" :class="{ 'has-arrowhead': element.type === 'arrow' }" :style="contentStyle" aria-hidden="true"></span>
 
     <template v-if="selected && active && editable && !element.locked">

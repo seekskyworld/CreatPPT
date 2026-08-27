@@ -65,4 +65,21 @@ describe('Fast path pipeline contracts', () => {
   it('keeps the existing DeckSpec v2 contract valid', () => {
     expect(safeParseDeck(createStarterDeck('M0 compatibility', 'editorial', 3)).success).toBe(true)
   })
+
+  it('allows new element types (table, chart, form, embed, animation, action) to flow through pipeline schema validation', () => {
+    const deck = createStarterDeck('Extended Elements Pipeline', 'signal', 1)
+    deck.slides[0].elements = [
+      { id: 'el-table', type: 'table', x: 10, y: 10, width: 400, height: 200, table: { headers: ['H1', 'H2'], rows: [['R1C1', 100]] } },
+      { id: 'el-chart', type: 'chart', x: 10, y: 220, width: 400, height: 200, chart: { type: 'pie', points: [{ label: 'A', value: 30 }] } },
+      { id: 'el-form', type: 'form', x: 10, y: 430, width: 400, height: 200, form: { fields: [{ type: 'text', label: 'Email' }] } },
+      { id: 'el-embed', type: 'embed', x: 420, y: 10, width: 400, height: 200, embed: { url: 'https://example.com' } },
+      { id: 'el-anim', type: 'animation', x: 420, y: 220, width: 100, height: 100, animation: { trigger: 'onClick', effect: 'fade' } },
+      { id: 'el-action', type: 'action', x: 420, y: 330, width: 200, height: 50, action: { type: 'url', target: 'https://example.com' } },
+    ]
+    deck.slides[0].animations = [{ trigger: 'onClick', effect: 'appear' }]
+    deck.slides[0].actions = [{ type: 'slideJump', target: 'slide-1' }]
+
+    const parsed = safeParseDeck(deck)
+    expect(parsed.success).toBe(true)
+  })
 })
